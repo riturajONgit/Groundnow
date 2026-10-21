@@ -4,6 +4,7 @@ export interface RouteState {
   path: string;
   tenantSlug: string | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isCreateBusiness: boolean;
   isAuth: boolean;
   authMode: 'login' | 'signup';
@@ -28,6 +29,7 @@ function parsePath(pathname: string, search: string): RouteState {
   const tenantSubAction = tenantMatch ? tenantMatch[2] : null;
 
   const isAdmin = cleanPath.startsWith('/admin');
+  const isSuperAdmin = cleanPath.startsWith('/superadmin');
   const isCreateBusiness = cleanPath === '/create-business' || cleanPath === '/create-tenant';
   const isAuth =
     cleanPath === '/login' ||
@@ -53,6 +55,7 @@ function parsePath(pathname: string, search: string): RouteState {
     path: cleanPath,
     tenantSlug,
     isAdmin,
+    isSuperAdmin,
     isCreateBusiness,
     isAuth,
     authMode,

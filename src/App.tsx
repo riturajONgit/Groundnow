@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RouterProvider, useRouter } from './lib/router';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import type { Tenant } from './types/database';
 import { Navbar } from './components/Navbar';
@@ -9,6 +10,7 @@ import { TenantLanding } from './pages/TenantLanding';
 import { AuthPage } from './pages/AuthPage';
 import { CreateBusinessPage } from './pages/CreateBusinessPage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { SuperAdminDashboard } from './pages/SuperAdminDashboard';
 import { HomePage } from './pages/HomePage';
 import { ShieldAlert, PlusCircle, ArrowLeft } from 'lucide-react';
 
@@ -40,9 +42,9 @@ function AppContent() {
   }, [route.tenantSlug]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 flex flex-col font-sans antialiased">
-      {/* Hide default navbar inside admin page if on desktop or when admin shell provides its own */}
-      {!route.isAdmin && (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans antialiased transition-colors duration-200">
+      {/* Hide default navbar inside admin and superadmin pages */}
+      {!route.isAdmin && !route.isSuperAdmin && (
         <Navbar
           tenant={currentTenant}
           onOpenConfig={() => setConfigModalOpen(true)}
@@ -52,6 +54,11 @@ function AppContent() {
       {/* Route Switcher */}
       <div className="flex-1 flex flex-col">
         {(() => {
+          // 0. Super Admin Shell (/superadmin)
+          if (route.isSuperAdmin) {
+            return <SuperAdminDashboard />;
+          }
+
           // 1. Admin Shell (/admin)
           if (route.isAdmin) {
             if (authLoading) {

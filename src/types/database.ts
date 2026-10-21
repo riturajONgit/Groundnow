@@ -13,6 +13,15 @@ export interface Tenant {
   upi_id?: string | null;
 }
 
+export interface Profile {
+  id: string;
+  full_name?: string | null;
+  phone?: string | null;
+  is_super_admin?: boolean | null;
+  created_at?: string;
+  email?: string | null;
+}
+
 export type TenantRole = 'tenant_owner' | 'tenant_staff' | 'customer';
 
 export interface TenantMember {
@@ -29,9 +38,16 @@ export interface Turf {
   tenant_id: string;
   name: string;
   address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  description?: string | null;
+  amenities?: string[] | null;
+  photos?: string[] | null;
   is_active?: boolean | null;
   parent_turf_id?: string | null;
-  description?: string | null;
   sport_type?: string | null;
   surface_type?: string | null;
   hourly_rate?: number | null;
@@ -44,6 +60,38 @@ export interface Turf {
   lighting?: boolean | null;
   created_at?: string;
   parent_turf?: Turf | null;
+}
+
+export interface MarketplaceSport {
+  name: string;
+  sport_id: number | string;
+  price_per_hour?: number | null;
+}
+
+export interface MarketplaceTurf {
+  turf_id: string;
+  turf_name: string;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  photos?: string[] | null;
+  amenities?: string[] | null;
+  lat?: number | null;
+  lng?: number | null;
+  tenant_id: string;
+  tenant_name: string;
+  tenant_slug: string;
+  brand_color?: string | null;
+  logo_url?: string | null;
+  min_price?: number | null;
+  sports?: MarketplaceSport[];
+  distance_km?: number | null;
+}
+
+export interface CityOption {
+  city: string;
+  state?: string | null;
+  turf_count?: number | null;
 }
 
 export interface Sport {

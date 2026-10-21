@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from '../lib/router';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import type { Tenant } from '../types/database';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { getTenantThemeStyles } from '../lib/theme';
@@ -15,6 +16,8 @@ import {
   X,
   Database,
   Store,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,7 +27,8 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
   const { navigate, route } = useRouter();
-  const { user, isStaffOrOwner, userRole, signOut } = useAuth();
+  const { user, isStaffOrOwner, isSuperAdmin, userRole, signOut } = useAuth();
+  const { isDark, toggleDark } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const theme = tenant ? getTenantThemeStyles(tenant.brand_color) : null;
@@ -39,7 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-xs">
+    <header className="sticky top-0 z-40 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 shadow-xs transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left: Brand / Tenant */}
@@ -130,13 +134,23 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
               </button>
             )}
 
+            {/* Dark Mode Toggle Button */}
+            <button
+              onClick={toggleDark}
+              className="min-h-[38px] min-w-[38px] p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer flex items-center justify-center shadow-2xs"
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label="Toggle dark mode"
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-neutral-700" />}
+            </button>
+
             {/* Create Business Link */}
             <button
               onClick={() => navigate('/create-business')}
               className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
                 route.isCreateBusiness
                   ? 'bg-neutral-900 text-white border-neutral-900'
-                  : 'bg-white text-neutral-800 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50'
+                  : 'bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700'
               }`}
             >
               <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
@@ -145,12 +159,24 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
 
             {/* User State */}
             {user ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-neutral-200">
+              <div className="flex items-center gap-2 pl-2 border-l border-neutral-200 dark:border-neutral-700">
+                {/* Super Admin Link (only for super admins) */}
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => navigate('/superadmin')}
+                    className="text-xs font-bold bg-amber-500 hover:bg-amber-400 text-neutral-950 px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0"
+                    title="Super Admin Platform Console"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Super Admin</span>
+                  </button>
+                )}
+
                 {/* Admin button for staff/owner */}
                 {isStaffOrOwner && (
                   <button
                     onClick={() => navigate('/admin')}
-                    className="text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-white px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                    className="text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-white px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0"
                   >
                     <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Admin Dashboard</span>
@@ -158,20 +184,24 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
                 )}
 
                 <div className="text-right">
-                  <div className="text-xs font-semibold text-neutral-900 max-w-[140px] truncate">
+                  <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 max-w-[140px] truncate">
                     {user.email}
                   </div>
                   <div className="flex items-center justify-end gap-1">
                     <span
                       className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full ${
-                        userRole === 'tenant_owner'
-                          ? 'bg-purple-100 text-purple-700'
+                        isSuperAdmin
+                          ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300'
+                          : userRole === 'tenant_owner'
+                          ? 'bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300'
                           : userRole === 'tenant_staff'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-neutral-100 text-neutral-600'
+                          ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300'
+                          : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
                       }`}
                     >
-                      {userRole === 'tenant_owner'
+                      {isSuperAdmin
+                        ? 'Super Admin'
+                        : userRole === 'tenant_owner'
                         ? 'Owner'
                         : userRole === 'tenant_staff'
                         ? 'Staff'
@@ -183,13 +213,13 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
                 <button
                   onClick={handleSignOut}
                   title="Sign out"
-                  className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-xl transition-colors cursor-pointer"
+                  className="p-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 pl-2 border-l border-neutral-200">
+              <div className="flex items-center gap-2 pl-2 border-l border-neutral-200 dark:border-neutral-700">
                 <button
                   onClick={() =>
                     navigate(tenant ? `/t/${tenant.slug}/login` : '/login')
@@ -206,8 +236,17 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
             )}
           </div>
 
-          {/* Mobile Menu Toggle */}
+          {/* Mobile Menu & Theme Toggles */}
           <div className="flex md:hidden items-center gap-1.5">
+            {/* Dark mode button for mobile */}
+            <button
+              onClick={toggleDark}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 cursor-pointer"
+              aria-label="Toggle dark mode"
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-neutral-700" />}
+            </button>
+
             {onOpenConfig && (
               <button
                 onClick={onOpenConfig}
@@ -223,7 +262,7 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl text-neutral-600 hover:bg-neutral-100 cursor-pointer"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -234,28 +273,44 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-neutral-200 bg-white px-4 pt-3 pb-5 space-y-2.5 shadow-lg">
+        <div className="md:hidden border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 pt-3 pb-5 space-y-2.5 shadow-lg">
           {user ? (
-            <div className="p-3 bg-neutral-50 rounded-xl space-y-1 mb-2">
-              <div className="text-xs font-medium text-neutral-500">Signed in as:</div>
-              <div className="text-sm font-semibold text-neutral-900 truncate">
+            <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-xl space-y-1 mb-2">
+              <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Signed in as:</div>
+              <div className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
                 {user.email}
               </div>
               <div className="inline-block mt-1">
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    userRole === 'tenant_owner'
+                    isSuperAdmin
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 font-extrabold'
+                      : userRole === 'tenant_owner'
                       ? 'bg-purple-100 text-purple-700'
                       : userRole === 'tenant_staff'
                       ? 'bg-blue-100 text-blue-700'
                       : 'bg-neutral-200 text-neutral-700'
                   }`}
                 >
-                  Role: {userRole}
+                  Role: {isSuperAdmin ? 'Super Admin' : userRole}
                 </span>
               </div>
             </div>
           ) : null}
+
+          {/* Super Admin mobile link (only for super admins) */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigate('/superadmin');
+              }}
+              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-sm font-black flex items-center gap-2 cursor-pointer shadow-xs"
+            >
+              <ShieldAlert className="w-4 h-4 shrink-0 text-neutral-950" />
+              <span>Super Admin Console</span>
+            </button>
+          )}
 
           {isStaffOrOwner && (
             <button
@@ -263,7 +318,7 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
                 setMobileMenuOpen(false);
                 navigate('/admin');
               }}
-              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
+              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl bg-neutral-900 dark:bg-neutral-800 text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
             >
               <LayoutDashboard className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>Go to Admin Dashboard</span>
@@ -275,7 +330,7 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
               setMobileMenuOpen(false);
               navigate('/create-business');
             }}
-            className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-sm font-semibold text-neutral-800 flex items-center gap-2 cursor-pointer"
+            className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-sm font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-2 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Create My Turf Business</span>
@@ -287,7 +342,7 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
                 setMobileMenuOpen(false);
                 navigate('/');
               }}
-              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl border border-neutral-200 text-sm text-neutral-700 hover:bg-neutral-50 flex items-center cursor-pointer"
+              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 flex items-center cursor-pointer"
             >
               Browse All Turf Venues
             </button>
@@ -299,7 +354,7 @@ export const Navbar: React.FC<NavbarProps> = ({ tenant, onOpenConfig }) => {
                 setMobileMenuOpen(false);
                 handleSignOut();
               }}
-              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer"
+              className="w-full min-h-[44px] text-left py-2.5 px-3.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
             >
               <LogOut className="w-4 h-4 shrink-0" />
               <span>Sign Out</span>

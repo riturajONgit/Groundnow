@@ -10,10 +10,11 @@ interface AuthContextType {
   memberships: TenantMember[];
   primaryTenant: Tenant | null;
   isStaffOrOwner: boolean;
+  isSuperAdmin: boolean;
   userRole: TenantRole;
   refreshUserData: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; role: TenantRole }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null; user: User | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null; user: User | null; session: Session | null }>;
   signOut: () => Promise<void>;
   getRoleForTenant: (tenantId?: string | null) => TenantRole;
 }
@@ -26,6 +27,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [memberships, setMemberships] = useState<TenantMember[]>([]);
   const [primaryTenant, setPrimaryTenant] = useState<Tenant | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+
+  const checkSuperAdmin = useCallback(async (userId: string) => {
+    if (!isSupabaseConfigured) {
+      setIsSuperAdmin(false);
+      return false;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_super_admin')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Error fetching profiles.is_super_admin:', error.message);
+        setIsSuperAdmin(false);
+        return false;
+      }
+      const flag = Boolean(data?.is_super_admin);
+      setIsSuperAdmin(flag);
+      return flag;
+    } catch (err) {
+      console.warn('Failed to check super admin status:', err);
+      setIsSuperAdmin(false);
+      return false;
+    }
+  }, []);
 
   const fetchUserRoles = useCallback(async (userId: string) => {
     if (!isSupabaseConfigured) return;
@@ -85,17 +114,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        await fetchUserRoles(currentSession.user.id);
+        await Promise.all([
+          fetchUserRoles(currentSession.user.id),
+          checkSuperAdmin(currentSession.user.id),
+        ]);
       } else {
         setMemberships([]);
         setPrimaryTenant(null);
+        setIsSuperAdmin(false);
       }
     } catch (err) {
       console.error('Error refreshing auth:', err);
     } finally {
       setLoading(false);
     }
-  }, [fetchUserRoles]);
+  }, [fetchUserRoles, checkSuperAdmin]);
 
   useEffect(() => {
     refreshUserData();
@@ -110,10 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
-        await fetchUserRoles(newSession.user.id);
+        await Promise.all([
+          fetchUserRoles(newSession.user.id),
+          checkSuperAdmin(newSession.user.id),
+        ]);
       } else {
         setMemberships([]);
         setPrimaryTenant(null);
+        setIsSuperAdmin(false);
       }
       setLoading(false);
     });
@@ -121,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserRoles, refreshUserData]);
+  }, [fetchUserRoles, checkSuperAdmin, refreshUserData]);
 
   const isStaffOrOwner = memberships.some(
     (m) => m.role === 'tenant_owner' || m.role === 'tenant_staff'
@@ -184,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string) => {
     if (!isSupabaseConfigured) {
-      return { error: new Error('Supabase is not configured.'), user: null };
+      return { error: new Error('Supabase is not configured.'), user: null, session: null };
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -192,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password,
     });
 
-    return { error, user: data.user };
+    return { error, user: data.user, session: data.session };
   };
 
   const signOut = async () => {
@@ -203,6 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setMemberships([]);
     setPrimaryTenant(null);
+    setIsSuperAdmin(false);
   };
 
   return (
@@ -214,6 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         memberships,
         primaryTenant,
         isStaffOrOwner,
+        isSuperAdmin,
         userRole,
         refreshUserData,
         signIn,

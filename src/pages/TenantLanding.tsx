@@ -93,6 +93,23 @@ export const TenantLanding: React.FC<TenantLandingProps> = ({ slug, onOpenConfig
   const userTenantRole = tenant ? getRoleForTenant(tenant.id) : 'customer';
   const isManagerOfThisTenant = userTenantRole === 'tenant_owner' || userTenantRole === 'tenant_staff';
 
+  // Auto-open Check Slots flow if URL has ?turf=turfId from marketplace
+  useEffect(() => {
+    if (turfs.length > 0 && !isSlotsModalOpen) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetTurfId = urlParams.get('turf');
+      if (targetTurfId) {
+        const found = turfs.find(
+          (t) => t.id === targetTurfId || t.name.toLowerCase() === targetTurfId.toLowerCase()
+        );
+        if (found) {
+          setSelectedTurfForSlots(found);
+          setIsSlotsModalOpen(true);
+        }
+      }
+    }
+  }, [turfs]);
+
   // Extract unique sport types for quick filtering
   const sportCategories = React.useMemo(() => {
     const list = new Set<string>();

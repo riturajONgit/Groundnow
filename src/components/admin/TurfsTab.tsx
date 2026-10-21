@@ -14,7 +14,19 @@ import {
   Building,
   RefreshCw,
   GitFork,
+  Navigation,
+  Compass,
+  FileText,
 } from 'lucide-react';
+
+const AVAILABLE_AMENITIES = [
+  'Floodlights',
+  'Parking',
+  'Washroom',
+  'Water',
+  'Changing room',
+  'Cafe',
+];
 
 interface TurfsTabProps {
   currentTenant: Tenant;
@@ -34,10 +46,19 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
 
   // Form states
   const [name, setName] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [pincode, setPincode] = useState('');
   const [address, setAddress] = useState('');
+  const [description, setDescription] = useState('');
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [lat, setLat] = useState<string>('');
+  const [lng, setLng] = useState<string>('');
   const [isActive, setIsActive] = useState(true);
   const [parentTurfId, setParentTurfId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
 
   // Deletion state
   const [deletingTurfId, setDeletingTurfId] = useState<string | null>(null);
@@ -51,9 +72,17 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
     setModalMode('add');
     setEditingTurf(null);
     setName('');
+    setCity(currentTenant.city || '');
+    setState('');
+    setPincode('');
     setAddress(currentTenant.address || '');
+    setDescription('');
+    setAmenities([]);
+    setLat('');
+    setLng('');
     setIsActive(true);
     setParentTurfId('');
+    setLocationMessage(null);
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -62,9 +91,17 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
     setModalMode('edit');
     setEditingTurf(turf);
     setName(turf.name || '');
+    setCity(turf.city || currentTenant.city || '');
+    setState(turf.state || '');
+    setPincode(turf.pincode || '');
     setAddress(turf.address || '');
+    setDescription(turf.description || '');
+    setAmenities(Array.isArray(turf.amenities) ? turf.amenities : []);
+    setLat(turf.lat != null ? String(turf.lat) : '');
+    setLng(turf.lng != null ? String(turf.lng) : '');
     setIsActive(turf.is_active ?? true);
     setParentTurfId(turf.parent_turf_id || '');
+    setLocationMessage(null);
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -72,7 +109,39 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
   const closeModal = () => {
     setModalMode(null);
     setEditingTurf(null);
+    setLocationMessage(null);
     setErrorMessage(null);
+  };
+
+  const handleToggleAmenity = (item: string) => {
+    setAmenities((prev) =>
+      prev.includes(item) ? prev.filter((a) => a !== item) : [...prev, item]
+    );
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationMessage('Geolocation is not supported by your browser.');
+      return;
+    }
+    setFetchingLocation(true);
+    setLocationMessage(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latitude = pos.coords.latitude.toFixed(6);
+        const longitude = pos.coords.longitude.toFixed(6);
+        setLat(latitude);
+        setLng(longitude);
+        setFetchingLocation(false);
+        setLocationMessage(`Location detected: ${latitude}, ${longitude}`);
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        setFetchingLocation(false);
+        setLocationMessage(err.message || 'Unable to retrieve location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleSaveTurf = async (e: React.FormEvent) => {
@@ -86,14 +155,30 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
       return;
     }
 
+    const trimmedCity = city.trim();
+    if (!trimmedCity) {
+      setErrorMessage('City is required.');
+      return;
+    }
+
     setSubmitting(true);
+
+    const parsedLat = lat !== '' && !isNaN(Number(lat)) ? parseFloat(lat) : null;
+    const parsedLng = lng !== '' && !isNaN(Number(lng)) ? parseFloat(lng) : null;
 
     try {
       if (modalMode === 'add') {
         const payload: Partial<Turf> = {
           tenant_id: currentTenant.id,
           name: trimmedName,
+          city: trimmedCity,
+          state: state.trim() || null,
+          pincode: pincode.trim() || null,
           address: address.trim() || null,
+          description: description.trim() || null,
+          amenities,
+          lat: parsedLat,
+          lng: parsedLng,
           is_active: isActive,
           parent_turf_id: parentTurfId ? parentTurfId : null,
         };
@@ -111,7 +196,14 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
       } else if (modalMode === 'edit' && editingTurf) {
         const updates: Partial<Turf> = {
           name: trimmedName,
+          city: trimmedCity,
+          state: state.trim() || null,
+          pincode: pincode.trim() || null,
           address: address.trim() || null,
+          description: description.trim() || null,
+          amenities,
+          lat: parsedLat,
+          lng: parsedLng,
           is_active: isActive,
           parent_turf_id: parentTurfId ? parentTurfId : null,
         };
@@ -303,25 +395,45 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
                     {turf.name}
                   </h3>
 
-                  {/* Address */}
-                  {turf.address ? (
-                    <div className="flex items-start gap-1.5 text-xs text-neutral-500 mt-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{turf.address}</span>
+                  {/* City & Address */}
+                  <div className="space-y-1 mt-1.5 text-xs text-neutral-600">
+                    <div className="flex items-center gap-1.5 font-semibold text-emerald-800 bg-emerald-50/70 border border-emerald-200/60 px-2 py-0.5 rounded-lg w-fit">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{turf.city || 'No City Set'}</span>
+                      {turf.state && <span className="text-neutral-500 font-normal">, {turf.state}</span>}
                     </div>
-                  ) : (
-                    <div className="text-[11px] text-neutral-400 italic mt-1.5">
-                      No address specified
+
+                    {turf.address && (
+                      <p className="text-neutral-500 line-clamp-1 text-[11px] pl-1">
+                        {turf.address}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Amenities Pills */}
+                  {turf.amenities && turf.amenities.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1">
+                      {turf.amenities.map((am) => (
+                        <span
+                          key={am}
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-700"
+                        >
+                          {am}
+                        </span>
+                      ))}
                     </div>
                   )}
 
-                  {/* ID / Metadata */}
+                  {/* ID & Geolocation Metadata */}
                   <div className="mt-3 pt-2 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-400 font-mono">
                     <span>ID: {turf.id.slice(0, 8)}...</span>
-                    {turf.sport_type && (
-                      <span className="font-sans font-medium text-neutral-600 bg-neutral-100 px-1.5 py-0.5 rounded">
-                        {turf.sport_type}
+                    {turf.lat != null && turf.lng != null ? (
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1 font-sans">
+                        <Compass className="w-3 h-3" />
+                        <span>Geo Linked</span>
                       </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-600 italic font-sans">No Geo</span>
                     )}
                   </div>
                 </div>
@@ -420,6 +532,47 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
                 />
               </div>
 
+              {/* City (Required), State, Pincode */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                    City <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g. Mumbai"
+                    className="w-full text-sm px-3.5 py-2.5 min-h-[44px] bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  />
+                </div>
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    placeholder="e.g. Maharashtra"
+                    className="w-full text-sm px-3.5 py-2.5 min-h-[44px] bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                    Pincode
+                  </label>
+                  <input
+                    type="text"
+                    value={pincode}
+                    onChange={(e) => setPincode(e.target.value)}
+                    placeholder="e.g. 400001"
+                    className="w-full text-sm px-3.5 py-2.5 min-h-[44px] bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
               {/* Address */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
@@ -434,6 +587,116 @@ export const TurfsTab: React.FC<TurfsTabProps> = ({
                     placeholder="e.g. Gate 3, Sports Complex, City Center"
                     className="w-full text-sm pl-9 pr-3.5 py-2.5 min-h-[60px] bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                  Description
+                </label>
+                <div className="relative">
+                  <FileText className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                  <textarea
+                    rows={2}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe your turf surface, dimensions, rules, or features..."
+                    className="w-full text-sm pl-9 pr-3.5 py-2.5 min-h-[60px] bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Amenities (Multi-select) */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                  Amenities
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {AVAILABLE_AMENITIES.map((item) => {
+                    const isSelected = amenities.includes(item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => handleToggleAmenity(item)}
+                        className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-2xs'
+                            : 'bg-neutral-50 border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                        }`}
+                      >
+                        <span>{item}</span>
+                        {isSelected ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-neutral-500 mt-1">
+                  Select available features to display on the marketplace card.
+                </p>
+              </div>
+
+              {/* Geolocation / Coordinates */}
+              <div className="p-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                      <Compass className="w-4 h-4 text-emerald-600" />
+                      Turf Coordinates (Lat / Lng)
+                    </span>
+                    <span className="text-[11px] text-neutral-500 block">
+                      Enables the "Near me" search and distance sorting on the marketplace.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentLocation}
+                    disabled={fetchingLocation}
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-800 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    <Navigation className={`w-3.5 h-3.5 text-emerald-600 ${fetchingLocation ? 'animate-spin' : ''}`} />
+                    <span>{fetchingLocation ? 'Detecting...' : 'Use my current location'}</span>
+                  </button>
+                </div>
+
+                {locationMessage && (
+                  <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                    {locationMessage}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                      Latitude
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={lat}
+                      onChange={(e) => setLat(e.target.value)}
+                      placeholder="e.g. 19.0760"
+                      className="w-full text-xs font-mono px-3 py-2 min-h-[40px] bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                      Longitude
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={lng}
+                      onChange={(e) => setLng(e.target.value)}
+                      placeholder="e.g. 72.8777"
+                      className="w-full text-xs font-mono px-3 py-2 min-h-[40px] bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
 

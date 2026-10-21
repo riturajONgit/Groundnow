@@ -125,7 +125,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         }
       } else {
         // Sign up
-        const { error, user: newUser } = await signUp(email, password);
+        const { error, user: newUser, session: newSession } = await signUp(email, password);
         if (error) {
           setErrorMessage(error.message);
           setLoading(false);
@@ -138,11 +138,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           return;
         }
 
-        setSuccessMessage(
-          'Account created! If email confirmation is enabled on your Supabase instance, check your inbox. Otherwise, signing you in...'
+        // Check if email confirmation is disabled/off (session returned or email already confirmed)
+        const isEmailConfirmationOff = Boolean(
+          newSession ||
+          newUser?.confirmed_at ||
+          (newUser as any)?.email_confirmed_at
         );
 
-        // Attempt immediate login if auto-confirmed
+        if (!isEmailConfirmationOff) {
+          setSuccessMessage('Check your email to confirm your account');
+          setLoading(false);
+          return;
+        }
+
+        // Only sign the user in automatically if email confirmation is off
         const { error: loginErr, role } = await signIn(email, password);
         if (!loginErr) {
           if (role === 'tenant_owner' || role === 'tenant_staff') {
